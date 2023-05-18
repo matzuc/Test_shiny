@@ -1,0 +1,111 @@
+---
+title: "Untitled"
+format:
+  html:
+    embed-resources: true
+---
+
+
+
+```{r}
+library(dplyr)
+library(data.table)
+library(readr)
+library(lubridate)
+```
+
+You can add options to executable code like this 
+
+```{r}
+data_dir <- here::here('testTWO/data')
+
+fl <- list.files(paste0(data_dir), full.names=TRUE)
+
+fl22 <- fl[stringr::str_detect(fl, "MRG_2022")]
+fl21 <- fl[stringr::str_detect(fl, "MRG_2021")]
+
+ft <- c(fl21, fl22)
+
+```
+
+
+
+provo a leggere un file
+
+```{r}
+
+a <- fread(ft[1], skip = 1)
+na <- names(read_csv(ft[1])[1, ])
+names(a) <- na
+```
+
+cambio i nomi a mano
+
+```{r}
+na <- na[-2]
+na <- c(na, "nobs")
+
+names(a) <- na
+```
+
+
+
+```{r}
+# Leggi ogni file e uniscili
+data <- do.call(rbind, lapply(ft, function(x) fread(x, skip = 1)))
+names(data) <- na
+
+
+
+
+data2 <- data |> mutate(dd = as_date(Date), h = hour(as_datetime(Date))) |> select(-Date, - "mean WD (deg)", - "sd WD (deg)")
+
+
+
+```
+
+
+calori medi
+
+```{r}
+dt_avg <- data2[, lapply(.SD, function(x) mean(x, na.rm = TRUE)), by = .(dd, h)]
+
+```
+
+
+
+
+```{r}
+aveWIND <- function(mean_WD_deg){
+  (360+(atan2(sum(sin(mean_WD_deg*pi/180)),sum(cos(mean_WD_deg*pi/180)))*180/pi))%%360
+}
+
+sdWIND <- function(mean_WD_deg){
+(360+(atan2(sum(sin(sd_WD_deg*pi/180)),sum(cos(sd_WD_deg*pi/180)))*180/pi))%%360
+}
+```
+
+
+```{r}
+data3 <- data |> mutate(dd = as_date(Date), h = hour(as_datetime(Date))) |> rename(mean_WD_deg = "mean WD (deg)", sd_WD_deg = "sd WD (deg)")
+
+winddt <- data3[, .(mean_WD_deg = aveWIND(mean_WD_deg),
+                    sd_WD_deg = aveWIND(sd_WD_deg)
+                    ), by=list(dd, h)]
+
+```
+
+
+
+
+
+
+
+```{r}
+data.out <- left_join(dt_avg, winddt)
+
+write.csv(data.out, here::here("MRG_1h_2021_2022.csv"), row.names = F)
+```
+
+
+
